@@ -52,6 +52,10 @@ yt-scheduler auth <project>
 Upload + schedule new videos found in a directory:
 
 ```bash
+yt-scheduler upload <project>  # if directory provided in init
+```
+
+```bash
 yt-scheduler upload <project> --directory /path/to/videos
 ```
 

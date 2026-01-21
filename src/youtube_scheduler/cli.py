@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import click
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -255,6 +256,7 @@ def upload(
     console.print(f"New videos to upload: [bold]{len(new_files)}[/bold]")
 
     # Ask scheduling preferences (allow per-run override)
+    console.print("\n[dim]Tip: press Enter to keep the current value shown in [brackets].[/dim]")
     videos_per_day = int(typer.prompt("How many videos per day?", default=str(p.videos_per_day)))
     timezone = typer.prompt("Timezone (IANA)", default=p.timezone)
     day_start_time = typer.prompt("Day start time (HH:MM)", default=p.day_start_time)
@@ -262,7 +264,7 @@ def upload(
     # Start schedule: today (from now) or a future date
     start_mode = typer.prompt(
         "When should scheduling start? (today/future)",
-        type=typer.Choice(["today", "future"], case_sensitive=False),
+        type=click.Choice(["today", "future"], case_sensitive=False),
         default="today",
     ).lower()
     if start_mode == "future":
