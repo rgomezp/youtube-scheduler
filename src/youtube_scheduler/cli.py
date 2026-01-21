@@ -81,26 +81,46 @@ def init(
     Create a new project and walk through setup.
     """
     ensure_dirs()
-    project = create_project(name)
-    console.print(f"\nCreated project [bold]{project.name}[/bold]")
-    console.print(f"Stored at: {projects_dir() / (project.name + '.json')}\n")
+    try:
+        project = create_project(name)
+        console.print(f"\nCreated project [bold]{project.name}[/bold]")
+        console.print(f"Stored at: {projects_dir() / (project.name + '.json')}\n")
+    except FileExistsError:
+        project = load_project(name)
+        console.print(f"\nLoaded existing project [bold]{project.name}[/bold] (resuming setup)")
+        console.print(f"Stored at: {projects_dir() / (project.name + '.json')}\n")
 
     console.print("[bold]Next: Google setup walkthrough[/bold]")
     console.print(
         "\n1) In Google Cloud Console, create/select a project\n"
         "2) Enable: YouTube Data API v3\n"
-        '3) Create OAuth Client ID (type: "Desktop app")\n'
-        "4) Download the JSON client secrets file\n"
-        "5) In OAuth consent screen, ensure scopes include:\n"
-        f"   - {DEFAULT_SCOPES[0]}\n"
-        f"   - {DEFAULT_SCOPES[1]}\n"
+        "3) Configure OAuth consent screen (External)\n"
+        "   - User type: External (most users)\n"
+        "   - App name + user support email + developer contact email (required)\n"
+        "   - Add scopes:\n"
+        f"     - {DEFAULT_SCOPES[0]}\n"
+        f"     - {DEFAULT_SCOPES[1]}\n"
+        "   - While in Testing, add developer-approved testers:\n"
+        "     OAuth consent screen → Audience → Test users → Add users → (enter Gmail addresses)\n"
+        "4) Create OAuth Client ID (type: \"Desktop app\")\n"
+        "5) Download the JSON client secrets file\n"
     )
 
-    secrets = typer.prompt(
-        "\nPath to your downloaded client secrets JSON (or leave blank to set later)",
-        default="",
-        show_default=False,
-    ).strip()
+    # Client secrets (skip re-prompting if already set unless user wants to change it)
+    if project.client_secrets_path:
+        console.print(f"\nClient secrets: [bold]{project.client_secrets_path}[/bold]")
+        console.print("[dim]Tip: press Enter to accept the default shown in [brackets].[/dim]")
+        change_secrets = typer.confirm("Change client secrets path?", default=False)
+        if change_secrets:
+            secrets = typer.prompt("New path to client secrets JSON").strip()
+        else:
+            secrets = ""
+    else:
+        secrets = typer.prompt(
+            "\nPath to your downloaded client secrets JSON (or leave blank to set later)",
+            default="",
+            show_default=False,
+        ).strip()
     if secrets:
         secrets_path = Path(secrets).expanduser().resolve()
         if not secrets_path.exists():
@@ -108,13 +128,42 @@ def init(
         project.client_secrets_path = str(secrets_path)
 
     # Basic scheduling prefs
-    upload_dir = typer.prompt("Directory you will upload videos from (can set later)", default="", show_default=False).strip()
+    if project.upload_dir:
+        console.print(f"\nUpload directory: [bold]{project.upload_dir}[/bold]")
+        console.print("[dim]Tip: press Enter to accept the default shown in [brackets].[/dim]")
+        change_dir = typer.confirm("Change upload directory?", default=False)
+        if change_dir:
+            upload_dir = typer.prompt(
+                "Directory you will upload videos from (can set later)",
+                default="",
+                show_default=False,
+            ).strip()
+        else:
+            upload_dir = ""
+    else:
+        upload_dir = typer.prompt(
+            "Directory you will upload videos from (can set later)",
+            default="",
+            show_default=False,
+        ).strip()
     if upload_dir:
-        p = Path(upload_dir).expanduser().resolve()
-        if not p.exists() or not p.is_dir():
-            raise typer.BadParameter(f"Not a directory: {p}")
-        project.upload_dir = str(p)
+        p = Path(upload_dir).expanduser()
+        if p.exists():
+            p = p.resolve()
+            if not p.is_dir():
+                console.print(f"[yellow]Warning:[/yellow] Not a directory: {p} (skipping; you can set later)")
+            else:
+                project.upload_dir = str(p)
+        else:
+            create = typer.confirm(f"Directory does not exist: {p}\nCreate it now?", default=True)
+            if create:
+                p.mkdir(parents=True, exist_ok=True)
+                project.upload_dir = str(p.resolve())
+            else:
+                console.print("OK — skipping upload directory for now. You can set it later.")
 
+    # These are safe to re-ask with defaults; they also make it clear what the project currently uses.
+    console.print("\n[dim]Tip: press Enter to keep the current value shown in [brackets].[/dim]")
     project.timezone = typer.prompt("Your timezone (IANA, e.g. America/New_York)", default=project.timezone)
     project.videos_per_day = int(typer.prompt("How many videos per day?", default=str(project.videos_per_day)))
     project.day_start_time = typer.prompt("What time should the day's schedule start? (HH:MM)", default=project.day_start_time)

@@ -32,6 +32,17 @@ Create a project and follow the prompts:
 yt-scheduler init
 ```
 
+If `init` fails halfway through for any reason, just run `yt-scheduler init` again with the same project name — it will **load the existing project and resume**.
+
+Most users should use an **External** OAuth consent screen (general audience). While the app is in **Testing**, add your Google account as a **Test user**, otherwise OAuth will fail for non-published apps.
+
+To add **developer-approved testers** (Test users):
+
+- In Google Cloud Console: **APIs & Services → OAuth consent screen**
+- Go to **Audience → Test users**
+- Click **Add users**
+- Add the Gmail/Google accounts that will run the CLI, then **Save**
+
 Authenticate (if you didn’t do it during init):
 
 ```bash
