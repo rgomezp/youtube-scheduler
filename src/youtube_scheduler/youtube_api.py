@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import random
+import time
 
 
 YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
@@ -78,8 +80,11 @@ def upload_video(
     description: str,
     tags: list[str] | None,
     category_id: str | None,
+    made_for_kids: bool,
     privacy_status: str,
     publish_at_rfc3339: str | None,
+    max_retries: int = 8,
+    base_delay_s: float = 1.0,
 ) -> str:
     """
     Uploads a video and returns the YouTube video id.
@@ -87,6 +92,7 @@ def upload_video(
     """
     _require_google_libs()
     from googleapiclient.http import MediaFileUpload
+    from googleapiclient.errors import HttpError
 
     body: dict[str, Any] = {
         "snippet": {
@@ -95,6 +101,7 @@ def upload_video(
         },
         "status": {
             "privacyStatus": privacy_status,
+            "selfDeclaredMadeForKids": bool(made_for_kids),
         },
     }
     if tags:
@@ -108,9 +115,19 @@ def upload_video(
     req = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
     response = None
+    attempt = 0
     while response is None:
-        status, response = req.next_chunk()
-        # status may be None for small uploads
+        try:
+            status, response = req.next_chunk()
+            # status may be None for small uploads
+        except HttpError as e:
+            attempt += 1
+            code = getattr(e, "status_code", None) or getattr(getattr(e, "resp", None), "status", None)
+            retriable = code in {429, 500, 502, 503, 504}
+            if not retriable or attempt > max_retries:
+                raise
+            delay = min(base_delay_s * (2 ** (attempt - 1)), 60.0) + random.random()
+            time.sleep(delay)
     return response["id"]
 
 

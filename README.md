@@ -59,6 +59,12 @@ yt-scheduler upload <project>  # if directory provided in init
 yt-scheduler upload <project> --directory /path/to/videos
 ```
 
+If you hit quota/rate limits, slow the CLI down:
+
+```bash
+yt-scheduler upload <project> --directory /path/to/videos --throttle-seconds 3
+```
+
 Dry-run to preview the scheduling plan without uploading:
 
 ```bash

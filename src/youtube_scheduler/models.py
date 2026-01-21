@@ -46,6 +46,7 @@ class Project:
     timezone: str = "UTC"
     videos_per_day: int = 1
     day_start_time: str = "09:00"  # local time HH:MM
+    made_for_kids: bool = False
 
     # OAuth / YouTube info
     client_secrets_path: str | None = None
@@ -64,6 +65,7 @@ class Project:
             "timezone": self.timezone,
             "videos_per_day": self.videos_per_day,
             "day_start_time": self.day_start_time,
+            "made_for_kids": self.made_for_kids,
             "client_secrets_path": self.client_secrets_path,
             "channel_id": self.channel_id,
             "channel_title": self.channel_title,
@@ -80,6 +82,7 @@ class Project:
             timezone=data.get("timezone") or "UTC",
             videos_per_day=int(data.get("videos_per_day") or 1),
             day_start_time=data.get("day_start_time") or "09:00",
+            made_for_kids=bool(data.get("made_for_kids") or False),
             client_secrets_path=data.get("client_secrets_path"),
             channel_id=data.get("channel_id"),
             channel_title=data.get("channel_title"),

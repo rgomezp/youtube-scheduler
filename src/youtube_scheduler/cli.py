@@ -6,6 +6,7 @@ from typing import Optional
 
 import click
 import typer
+import time
 from rich.console import Console
 from rich.table import Table
 
@@ -215,6 +216,7 @@ def upload(
     project: str = typer.Argument(..., help="Project name"),
     directory: Optional[str] = typer.Option(None, help="Directory containing videos (overrides project setting)"),
     dry_run: bool = typer.Option(False, help="Plan schedule without uploading"),
+    throttle_seconds: float = typer.Option(1.0, help="Delay between video uploads to reduce rate-limit risk"),
 ):
     """
     Upload and schedule any new videos found in the directory.
@@ -301,6 +303,8 @@ def upload(
     tags_raw = typer.prompt("Tags (comma-separated, optional)", default="", show_default=False).strip()
     tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else None
     category_id = typer.prompt("Category ID (optional, leave blank)", default="", show_default=False).strip() or None
+    made_for_kids = typer.confirm('Is this video "made for kids"?', default=bool(getattr(p, "made_for_kids", False)))
+    p.made_for_kids = made_for_kids
 
     # Build YouTube client (unless dry-run)
     yt = None
@@ -337,10 +341,13 @@ def upload(
                 description=description,
                 tags=tags,
                 category_id=category_id,
+                made_for_kids=made_for_kids,
                 privacy_status="private",
                 publish_at_rfc3339=publish_at,
             )
             console.print(f"Uploaded: https://youtu.be/{video_id}")
+            if throttle_seconds > 0 and idx < len(new_files) - 1:
+                time.sleep(throttle_seconds)
 
         sha, size = hashes[f]
         p.uploaded.append(
