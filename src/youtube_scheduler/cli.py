@@ -212,6 +212,91 @@ def _video_already_uploaded(project, sha256: str, size: int) -> bool:
 
 
 @app.command()
+def cleanup(
+    project: str = typer.Argument(..., help="Project name"),
+    directory: Optional[str] = typer.Option(None, help="Directory to clean (overrides project setting)"),
+    dry_run: bool = typer.Option(True, help="Preview deletions without deleting"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """
+    Delete local video files that have already been successfully uploaded for this project.
+
+    Safety checks:
+    - Only deletes files whose (name, size, sha256) match a recorded uploaded entry.
+    - Defaults to dry-run.
+    """
+    p = _require_project(project)
+    upload_dir = Path(directory).expanduser().resolve() if directory else (Path(p.upload_dir).expanduser().resolve() if p.upload_dir else None)
+    if upload_dir is None:
+        raise typer.BadParameter("No upload directory set. Provide --directory or set upload_dir in the project.")
+    if not upload_dir.exists() or not upload_dir.is_dir():
+        raise typer.BadParameter(f"Not a directory: {upload_dir}")
+
+    if not p.uploaded:
+        console.print("No uploaded videos recorded for this project yet. Nothing to clean.")
+        raise typer.Exit(code=0)
+
+    # Build quick lookup: filename -> list of (sha,size)
+    uploaded_by_name: dict[str, list[tuple[str, int]]] = {}
+    for u in p.uploaded:
+        uploaded_by_name.setdefault(u.file_name, []).append((u.file_sha256, int(u.file_size)))
+
+    # Candidate files: only those with names we recognize
+    candidates = []
+    for file_name in sorted(uploaded_by_name.keys()):
+        fp = upload_dir / file_name
+        if fp.exists() and fp.is_file():
+            candidates.append(fp)
+
+    if not candidates:
+        console.print("No matching uploaded files found in the directory. Nothing to clean.")
+        raise typer.Exit(code=0)
+
+    to_delete: list[Path] = []
+    total_bytes = 0
+    console.print(f"Checking {len(candidates)} candidate files for safe deletion...")
+    for fp in candidates:
+        size = fp.stat().st_size
+        sha = sha256_file(fp)
+        allowed = uploaded_by_name.get(fp.name) or []
+        if (sha, size) in allowed:
+            to_delete.append(fp)
+            total_bytes += size
+
+    if not to_delete:
+        console.print("No files matched uploaded records by hash+size. Nothing to delete.")
+        raise typer.Exit(code=0)
+
+    table = Table(title="Files eligible for deletion (already uploaded)")
+    table.add_column("File")
+    table.add_column("Size (MB)", justify="right")
+    for fp in to_delete:
+        table.add_row(fp.name, f"{fp.stat().st_size / (1024*1024):.2f}")
+    console.print(table)
+    console.print(f"Total space to free: [bold]{total_bytes / (1024*1024):.2f} MB[/bold]")
+
+    if dry_run:
+        console.print("\nDry-run enabled (no files deleted). Re-run with --dry-run false to delete.")
+        raise typer.Exit(code=0)
+
+    if not yes:
+        ok = typer.confirm("Delete these files now?", default=False)
+        if not ok:
+            console.print("Cancelled.")
+            raise typer.Exit(code=0)
+
+    deleted = 0
+    for fp in to_delete:
+        try:
+            fp.unlink()
+            deleted += 1
+        except Exception as e:
+            console.print(f"[yellow]Warning:[/yellow] Failed to delete {fp}: {e}")
+
+    console.print(f"\nDeleted {deleted}/{len(to_delete)} files.")
+
+
+@app.command()
 def upload(
     project: str = typer.Argument(..., help="Project name"),
     directory: Optional[str] = typer.Option(None, help="Directory containing videos (overrides project setting)"),
@@ -297,14 +382,51 @@ def upload(
     p.day_start_time = day_start_time
 
     # Ask video metadata once (applies to all scheduled videos)
-    console.print("\n[bold]Video metadata (applies to ALL scheduled videos)[/bold]")
-    title = typer.prompt("Title")
-    description = typer.prompt("Description", default="", show_default=False)
-    tags_raw = typer.prompt("Tags (comma-separated, optional)", default="", show_default=False).strip()
-    tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else None
-    category_id = typer.prompt("Category ID (optional, leave blank)", default="", show_default=False).strip() or None
+    console.print("\n[bold]Video defaults for this project (applies to ALL scheduled videos)[/bold]")
+    console.print("[dim]Tip: these are saved to the project so you won't need to retype them after interruptions.[/dim]")
+
+    if p.default_title is not None:
+        console.print(f"\nTitle: [bold]{p.default_title}[/bold]")
+        change = typer.confirm("Change title?", default=False)
+        title = typer.prompt("Title").strip() if change else p.default_title
+    else:
+        title = typer.prompt("Title").strip()
+
+    if p.default_description is not None:
+        console.print(f"\nDescription: [bold]{p.default_description}[/bold]")
+        change = typer.confirm("Change description?", default=False)
+        description = typer.prompt("Description", default="", show_default=False) if change else p.default_description
+    else:
+        description = typer.prompt("Description", default="", show_default=False)
+
+    if p.default_tags is not None:
+        console.print(f"\nTags: [bold]{', '.join(p.default_tags)}[/bold]")
+        change = typer.confirm("Change tags?", default=False)
+        if change:
+            tags_raw = typer.prompt("Tags (comma-separated, optional)", default="", show_default=False).strip()
+            tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else None
+        else:
+            tags = p.default_tags
+    else:
+        tags_raw = typer.prompt("Tags (comma-separated, optional)", default="", show_default=False).strip()
+        tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else None
+
+    if p.default_category_id is not None:
+        console.print(f"\nCategory ID: [bold]{p.default_category_id}[/bold]")
+        change = typer.confirm("Change category ID?", default=False)
+        category_id = typer.prompt("Category ID (optional, leave blank)", default="", show_default=False).strip() or None if change else p.default_category_id
+    else:
+        category_id = typer.prompt("Category ID (optional, leave blank)", default="", show_default=False).strip() or None
+
     made_for_kids = typer.confirm('Is this video "made for kids"?', default=bool(getattr(p, "made_for_kids", False)))
     p.made_for_kids = made_for_kids
+
+    # Persist defaults so re-runs (after limits/errors) don't require re-entry
+    p.default_title = title
+    p.default_description = description
+    p.default_tags = tags
+    p.default_category_id = category_id
+    save_project(p)
 
     # Build YouTube client (unless dry-run)
     yt = None
@@ -334,17 +456,29 @@ def upload(
             video_id = "DRY_RUN"
         else:
             assert yt is not None
-            video_id = upload_video(
-                youtube=yt,
-                file_path=f,
-                title=title,
-                description=description,
-                tags=tags,
-                category_id=category_id,
-                made_for_kids=made_for_kids,
-                privacy_status="private",
-                publish_at_rfc3339=publish_at,
-            )
+            try:
+                video_id = upload_video(
+                    youtube=yt,
+                    file_path=f,
+                    title=title,
+                    description=description,
+                    tags=tags,
+                    category_id=category_id,
+                    made_for_kids=made_for_kids,
+                    privacy_status="private",
+                    publish_at_rfc3339=publish_at,
+                )
+            except Exception as e:
+                # Common YouTube error when daily/channel upload cap is reached.
+                # Example reason: "uploadLimitExceeded"
+                if "uploadLimitExceeded" in str(e):
+                    console.print(
+                        "\n[bold red]Upload limit reached.[/bold red]\n"
+                        "YouTube blocked further uploads for this account/channel (reason: uploadLimitExceeded).\n"
+                        "Already-uploaded videos were saved to the project. Re-run this command later to continue."
+                    )
+                    raise typer.Exit(code=3)
+                raise
             console.print(f"Uploaded: https://youtu.be/{video_id}")
             if throttle_seconds > 0 and idx < len(new_files) - 1:
                 time.sleep(throttle_seconds)

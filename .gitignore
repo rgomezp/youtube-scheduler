@@ -10,5 +10,7 @@ build/
 # Local user tokens/secrets should not be committed
 *.token.json
 client_secret*.json
+oauth.json
 
+videos
 

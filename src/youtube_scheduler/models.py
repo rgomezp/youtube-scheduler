@@ -48,6 +48,12 @@ class Project:
     day_start_time: str = "09:00"  # local time HH:MM
     made_for_kids: bool = False
 
+    # Defaults applied to all uploads (can be changed per run)
+    default_title: str | None = None
+    default_description: str | None = None
+    default_tags: list[str] | None = None
+    default_category_id: str | None = None
+
     # OAuth / YouTube info
     client_secrets_path: str | None = None
     channel_id: str | None = None
@@ -66,6 +72,10 @@ class Project:
             "videos_per_day": self.videos_per_day,
             "day_start_time": self.day_start_time,
             "made_for_kids": self.made_for_kids,
+            "default_title": self.default_title,
+            "default_description": self.default_description,
+            "default_tags": self.default_tags,
+            "default_category_id": self.default_category_id,
             "client_secrets_path": self.client_secrets_path,
             "channel_id": self.channel_id,
             "channel_title": self.channel_title,
@@ -83,6 +93,10 @@ class Project:
             videos_per_day=int(data.get("videos_per_day") or 1),
             day_start_time=data.get("day_start_time") or "09:00",
             made_for_kids=bool(data.get("made_for_kids") or False),
+            default_title=data.get("default_title"),
+            default_description=data.get("default_description"),
+            default_tags=list(data.get("default_tags")) if data.get("default_tags") else None,
+            default_category_id=data.get("default_category_id"),
             client_secrets_path=data.get("client_secrets_path"),
             channel_id=data.get("channel_id"),
             channel_title=data.get("channel_title"),

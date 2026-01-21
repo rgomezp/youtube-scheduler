@@ -71,6 +71,18 @@ Dry-run to preview the scheduling plan without uploading:
 yt-scheduler upload <project> --directory /path/to/videos --dry-run
 ```
 
+Clean up local files that have already been uploaded (frees disk space):
+
+```bash
+yt-scheduler cleanup <project> --dry-run
+```
+
+Then actually delete:
+
+```bash
+yt-scheduler cleanup <project> --dry-run false
+```
+
 List projects:
 
 ```bash
