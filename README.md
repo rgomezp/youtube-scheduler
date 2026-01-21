@@ -14,8 +14,14 @@ Interactive CLI to **upload and schedule videos** using the **YouTube Data API v
 
 From this repo:
 
+Install pipx:
+```
+brew install pipx
+pipx ensurepath
+```
+
 ```bash
-python -m pip install -e ".[youtube]"
+pipx install -e ".[youtube]"
 ```
 
 ## Quick start
@@ -49,6 +55,59 @@ List projects:
 ```bash
 yt-scheduler projects list
 ```
+
+## Developing
+```bash
+cd youtube-scheduler
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+pip install -U pip
+pip install -e ".[youtube]"
+```
+
+### Why this works:
+`pip install -e .` creates a live linke from: `.venv/site-packages/youtube_scheduler → ./src/youtube_scheduler`
+
+So when you edit: `src/youtube_scheduler/cli.py`
+
+Your CLI immediately reflects the change.
+
+### How to run during development
+
+Option A:
+```bash
+yt-scheduler --help
+```
+
+Option B:
+```bash
+python -m youtube_scheduler.cli
+```
+
+### When do you need to reinstall (globally)?
+Only if you change:
+
+- pyproject.toml dependencies
+- entry points ([project.scripts])
+- extras ([project.optional-dependencies])
+
+Then run:
+```bash
+pip install -e ".[youtube]"
+```
+
+### Sanity check
+```bash
+which yt-scheduler
+```
+
+You should see:
+```
+youtube-scheduler/.venv/bin/yt-scheduler
+```
+If yes -> Perfect dev setup
 
 ## Notes / recommendations (for approval)
 
