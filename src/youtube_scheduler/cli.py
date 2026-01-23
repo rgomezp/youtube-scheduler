@@ -215,7 +215,7 @@ def _video_already_uploaded(project, sha256: str, size: int) -> bool:
 def cleanup(
     project: str = typer.Argument(..., help="Project name"),
     directory: Optional[str] = typer.Option(None, help="Directory to clean (overrides project setting)"),
-    dry_run: bool = typer.Option(True, help="Preview deletions without deleting"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview deletions without deleting"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
     """
@@ -276,7 +276,7 @@ def cleanup(
     console.print(f"Total space to free: [bold]{total_bytes / (1024*1024):.2f} MB[/bold]")
 
     if dry_run:
-        console.print("\nDry-run enabled (no files deleted). Re-run with --dry-run false to delete.")
+        console.print("\nDry-run enabled (no files deleted). Re-run with --no-dry-run to delete.")
         raise typer.Exit(code=0)
 
     if not yes:

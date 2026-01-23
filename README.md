@@ -73,14 +73,22 @@ yt-scheduler upload <project> --directory /path/to/videos --dry-run
 
 Clean up local files that have already been uploaded (frees disk space):
 
+Preview what would be deleted:
+
 ```bash
 yt-scheduler cleanup <project> --dry-run
 ```
 
-Then actually delete:
+Actually delete (with confirmation):
 
 ```bash
-yt-scheduler cleanup <project> --dry-run false
+yt-scheduler cleanup <project>
+```
+
+Delete without confirmation prompt:
+
+```bash
+yt-scheduler cleanup <project> --yes
 ```
 
 List projects:
