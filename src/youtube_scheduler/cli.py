@@ -325,6 +325,32 @@ def upload(
         console.print(f"No video files found in {upload_dir} (expected one of: {', '.join(sorted(exts))})")
         raise typer.Exit(code=0)
 
+    # Check for iCloud-offloaded files (macOS)
+    import subprocess
+    try:
+        # Check if file has iCloud extended attributes
+        result = subprocess.run(
+            ["xattr", "-l", str(files[0])],
+            capture_output=True, text=True, timeout=2
+        )
+        # Check for iCloud-related attributes
+        has_icloud_attrs = any(
+            attr in result.stdout 
+            for attr in ["com.apple.ubiquity", "com.apple.fileprovider", "com.apple.icloud"]
+        )
+        # Check if file appears to be offloaded (size > 0 but might not be fully downloaded)
+        # This is a heuristic - offloaded files often have these attributes
+        if has_icloud_attrs:
+            console.print(
+                "\n[yellow]Warning:[/yellow] Files appear to be synced with iCloud. "
+                "If files are offloaded, hashing will trigger downloads which can be slow.\n"
+                "To download all files locally first, run:\n"
+                "  [bold]find videos -name '*.mp4' -exec brctl download {} \\;[/bold]\n"
+                "Or disable iCloud sync for this directory.\n"
+            )
+    except Exception:
+        pass  # Skip check if xattr isn't available or check fails
+
     # Identify new videos
     new_files: list[Path] = []
     hashes: dict[Path, tuple[str, int]] = {}
